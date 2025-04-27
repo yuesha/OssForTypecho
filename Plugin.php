@@ -248,10 +248,11 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
      * 获取实际文件绝对访问路径
      *
      * @access public
-     * @param array $content 文件相关信息
+     * @param $content 文件相关信息
      * @return string
      */
-    public static function attachmentHandle(array $content) {
+    public static function attachmentHandle($content) {
+        // fix:typecho1.3.0 传入的是 Typecho\Config 对象，所以不可定义为数组参数
         //获取设置参数
         $options = Typecho_Widget::widget('Widget_Options')->plugin('OssForTypecho');
         return Typecho_Common::url($content['attachment']->path, self::getDomain());
