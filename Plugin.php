@@ -253,9 +253,13 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
      */
     public static function attachmentHandle($content) {
         // fix:typecho1.3.0 传入的是 Typecho\Config 对象，所以不可定义为数组参数
+
+        // fix:转换为数组，方便下面使用
+        $content = $content->toArray();
+
         //获取设置参数
         $options = Typecho_Widget::widget('Widget_Options')->plugin('OssForTypecho');
-        return Typecho_Common::url($content['attachment']->path, self::getDomain());
+        return Typecho_Common::url($content['path'], self::getDomain());
     }
 
     /**
