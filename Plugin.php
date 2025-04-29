@@ -1,18 +1,39 @@
 <?php
 /**
- *  阿里云OSS上传插件（Typecho）
+ *  阿里云OSS上传插件
  *
  * @package OssForTypecho
- * @author Charmeryl
+ * @author yuesha
  * @version 1.0.1
- * @link https://bigrats.net
+ * @link https://hw13.cn
  * @dependence 1.0-*
- * @date 2018-08-08
+ * @date 2025-04-29
  */
 
 class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
     //上传文件目录
     const UPLOAD_DIR = '/usr/uploads' ;
+    // OSS地域信息
+    public static $ossRegion = [
+        'oss-cn-hangzhou' => '华东 1(杭州)',
+        'oss-cn-shanghai' => '华东 2(上海)',
+        'oss-cn-qingdao' => '华北 1(青岛)',
+        'oss-cn-beijing' => '华北 2(北京)',
+        'oss-cn-zhangjiakou' => '华北 3(张家口)',
+        'oss-cn-huhehaote' => '华北 5(呼和浩特)',
+        'oss-cn-shenzhen' => '华南 1(深圳)',
+        'oss-cn-hongkong' => '香港',
+        'oss-us-west-1' => '美国西部 1 (硅谷)',
+        'oss-us-east-1' => '美国东部 1 (弗吉尼亚)',
+        'oss-ap-southeast-1' => '亚太东南 1 (新加坡)',
+        'oss-ap-southeast-2' => '亚太东南 2 (悉尼)',
+        'oss-ap-southeast-3' => '亚太东南 3 (吉隆坡)',
+        'oss-ap-southeast-5' => '亚太东南 5 (雅加达)',
+        'oss-ap-northeast-1' => '亚太东北 1 (日本)',
+        'oss-ap-south-1' => '亚太南部 1 (孟买)',
+        'oss-eu-central-1' => '欧洲中部 1 (法兰克福)',
+        'oss-me-east-1' => '中东东部 1 (迪拜)'
+    ];
 
     /**
      * 激活插件方法,如果激活失败,直接抛出异常
@@ -52,11 +73,11 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
     public static function config(Typecho_Widget_Helper_Form $form) {
         $desc = new Typecho_Widget_Helper_Form_Element_Text('desc', NULL, '', _t('插件使用说明：'),
             _t('<ol>
-                      <li>插件基于阿里云aliyun-oss-php-sdk开发，若发现插件不可用，请到本插件 <a target="_blank" href="https://github.com/CharmeRyl/typecho-plugin-ossfile">GitHub发布地址</a> 检查是否有更新，或者提交Issues。<br></li>
-                      <li>在阿里云 <a target="_blank" href="https://ak-console.aliyun.com/#/accesskey">AccessKey管理控制台</a> 页面里获取AccessKeyID与AccessKeySecret。<br></li>
-                      <li>插件不会验证配置的正确性，请自行确认配置信息正确，否则不能正常使用。<br></li>
-                      <li>插件会替换所有之前上传的文件的链接，若启用插件前存在已上传的数据，请自行将其上传至OSS相同目录中以保证正常显示；同时，禁用插件也会导致链接恢复，也请自行将数据下载至相同目录中。<br></li>
-                    </ol>'));
+                  <li>插件基于阿里云aliyun-oss-php-sdk(版本：2.6.0)开发，若发现插件不可用，请到本插件 <a target="_blank" href="https://github.com/yuesha/OssForTypecho">GitHub发布地址</a> 检查是否有更新，或者提交Issues。</li>
+                  <li>插件不会验证配置的正确性，请自行确认配置信息正确，否则不能正常使用。</li>
+                  <li>插件会替换所有之前上传的文件的链接，若启用插件前存在已上传的数据，请自行将其上传至OSS相同目录中以保证正常显示；</li>
+                  <li>同时，禁用插件也会导致链接恢复，也请自行将数据下载至相同目录中。</li>
+                </ol>'));
         $form->addInput($desc);
 
         $acid = new Typecho_Widget_Helper_Form_Element_Text('acid',
@@ -69,26 +90,14 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
             _t('AccessKeySecret：'));
         $form->addInput($ackey->addRule('required', _t('AccessKey不能为空！')));
 
-        $region = new Typecho_Widget_Helper_Form_Element_Select('region',
-            array('oss-cn-hangzhou' => '华东 1', 'oss-cn-shanghai' => '华东 2', 'oss-cn-qingdao' => '华北 1',
-                'oss-cn-beijing' => '华北 2', 'oss-cn-zhangjiakou' => '华北 3', 'oss-cn-huhehaote' => '华北 5',
-                'oss-cn-shenzhen' => '华南 1', 'oss-cn-hongkong' => '香港', 'oss-us-west-1' => '美国西部 1 （硅谷）',
-                'oss-us-east-1' => '美国东部 1 （弗吉尼亚）', 'oss-ap-southeast-1' => '亚太东南 1 （新加坡）',
-                'oss-ap-southeast-2' => '亚太东南 2 （悉尼）', 'oss-ap-southeast-3' => '亚太东南 3 （吉隆坡）',
-                'oss-ap-southeast-5' => '亚太东南 5 （雅加达）', 'oss-ap-northeast-1' => '亚太东北 1 （日本）',
-                'oss-ap-south-1' => '亚太南部 1 （孟买）', 'oss-eu-central-1' => '欧洲中部 1 （法兰克福）',
-                'oss-me-east-1' => '中东东部 1 （迪拜）'),
-            'oss-cn-hangzhou', _t('存储区域：')
-        );
+        $region = new Typecho_Widget_Helper_Form_Element_Select('region', self::$ossRegion, 'oss-cn-hangzhou', _t('存储区域：') );
         $form->addInput($region);
 
         $suffix = new Typecho_Widget_Helper_Form_Element_Radio('suffix', array('.aliyuncs.com' => '外网', '-internal.aliyuncs.com' => '内网'),
-            '.aliyuncs.com', _t('节点访问方式：'), _t('阿里云主机选择内网方式可节省上传流量'));
+            '.aliyuncs.com', _t('节点访问方式：'), _t('阿里云主机选择内网方式可节省上传流量(需要当前服务器在同一地域,即网段相同)'));
         $form->addInput($suffix);
 
-        $bucket = new Typecho_Widget_Helper_Form_Element_Text('bucket',
-            NULL, '',
-            _t('Bucket名称：'));
+        $bucket = new Typecho_Widget_Helper_Form_Element_Text('bucket', NULL, '', _t('Bucket名称：'));
         $form->addInput($bucket->addRule('required', _t('Bucket名称不能为空！')));
 
         $domain = new Typecho_Widget_Helper_Form_Element_Text('domain',
@@ -97,9 +106,9 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
             _t('可使用自定义域名（留空则使用默认域名）<br>例如：http://oss.example.com（需加上前面的 http:// 或 https://）'));
         $form->addInput($domain);
 
+        // 隐藏输入框，更好看
         echo '<script>
-          window.onload = function() 
-          {
+          window.onload = function() {
             document.getElementsByName("desc")[0].type = "hidden";
           }
         </script>';
