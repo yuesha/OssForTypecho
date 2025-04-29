@@ -285,7 +285,7 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
     public static function OssInit() {
         $options = Typecho_Widget::widget('Widget_Options')->plugin('OssForTypecho');
         $endpoint = 'https://' . $options->region . $options->suffix;
-        require_once 'aliyun-oss-php-sdk-2.3.0.phar';
+        require_once 'aliyun-oss-php-sdk-2.6.0.phar';
         return new OSS\OssClient($options->acid, $options->ackey, $endpoint);
     }
 
