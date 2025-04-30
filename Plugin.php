@@ -51,6 +51,8 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
         Typecho_Plugin::factory('Widget_Upload')->deleteHandle = array('OssForTypecho_Plugin', 'deleteHandle');
         Typecho_Plugin::factory('Widget_Upload')->attachmentHandle = array('OssForTypecho_Plugin', 'attachmentHandle');
         Typecho_Plugin::factory('Widget_Upload')->attachmentDataHandle = array('OssForTypecho_Plugin', 'attachmentDataHandle');
+        Typecho_Plugin::factory('admin/file-upload-js.php')->uploadMaxFileSize = array('OssForTypecho_Plugin', 'getUploadMaxFileSize');
+
         return _t('插件已激活，请前往设置');
     }
 
@@ -116,10 +118,16 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
         $form->addInput($uploadDir);
 
         $maxUploadSize = new Typecho_Widget_Helper_Form_Element_Text('maxUploadSize',
-            NULL, '200',
-            _t('文件大小限制：'),
-            _t('单位是kb，建议设置在200kb以下'));
+            NULL, '500',
+            _t('后端文件大小限制：'),
+            _t('单位是kb，建议设置在200kb以下，超过此值的任何文件都会被服务器拒绝'));
         $form->addInput($maxUploadSize);
+
+        $compressImgUploadSize = new Typecho_Widget_Helper_Form_Element_Text('compressImgUploadSize',
+            NULL, '100',
+            _t('前端压缩图片文件大小阈值：'),
+            _t('设置此项后，会将图片自动压缩到指定大小再上传；单位是kb，建议设置在200kb以下，减少网站流量压力'));
+        $form->addInput($compressImgUploadSize);
 
         // 隐藏输入框，更好看
         echo '<script>
@@ -335,6 +343,17 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
         $options = Typecho_Widget::widget('Widget_Options')->plugin('OssForTypecho');
         $ossClient = self::OssInit();
         return $ossClient->getObjectMeta($options->bucket, substr($content['attachment']->path,1));
+    }
+
+    /**
+     * 获取前端上传前自动压缩的阈值
+     */
+    public static function getUploadMaxFileSize()
+    {
+        //获取设置参数
+        $options = Typecho_Widget::widget('Widget_Options')->plugin('OssForTypecho');
+
+        return (int)($options->compressImgUploadSize)*1024;
     }
 
     /**
