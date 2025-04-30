@@ -167,7 +167,6 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
             return false;
         }
 
-
         //获取文件名
         $date = new Typecho_Date($options->gmtTime);
         $fileDir = '/' . trim(self::getUploadDir(), '/') . '/' . $date->year . '/' . $date->month;
@@ -247,7 +246,18 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
         //初始化OSS
         $ossClient = self::OssInit();
         try {
-            $result = $ossClient->uploadFile($options->bucket, substr($path,1), $uploadfile);
+            // 打开文件并准备上传
+            // 使用fopen以只读模式打开文件，并通过Utils::streamFor将文件内容转换为流
+            $body = Oss\Utils::streamFor(fopen($uploadfile, 'r'));
+
+            // 创建PutObjectRequest对象，用于上传文件
+            $request = new Oss\Models\PutObjectRequest(bucket: $options->bucket, key: substr($path,1));
+            $request->body = $body; // 设置请求体为文件流
+
+            // 执行上传操作
+            $result = $ossClient->putObject($request);
+            // 上传失败
+            if ($result->statusCode != 200) return false;
         } catch (Exception $e) {
             return false;
         }
@@ -279,8 +289,16 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
         $options = Typecho_Widget::widget('Widget_Options')->plugin('OssForTypecho');
         //初始化COS
         $ossClient = self::OssInit();
+        $path = $content['attachment']->path;
         try {
-            $ossClient->deleteObject($options->bucket, $content['attachment']->path);
+            // 创建DeleteObjectRequest对象，用于删除指定的对象
+            $request = new Oss\Models\DeleteObjectRequest(bucket: $options->bucket, key: substr($path,1));
+
+            // 执行删除对象操作
+            $result = $ossClient->deleteObject($request);
+
+            // 删除失败
+            if ($result->statusCode != 200) return false;
         } catch (Exception $e) {
             return false;
         }
