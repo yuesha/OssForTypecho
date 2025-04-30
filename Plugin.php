@@ -115,6 +115,12 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
             _t('eg:https://oss.example.com/{$上传文件目录}/2025/04/1021214824.png，上传文件目录 不需要斜杠结尾'));
         $form->addInput($uploadDir);
 
+        $maxUploadSize = new Typecho_Widget_Helper_Form_Element_Text('maxUploadSize',
+            NULL, '200',
+            _t('文件大小限制：'),
+            _t('单位是kb，建议设置在200kb以下'));
+        $form->addInput($maxUploadSize);
+
         // 隐藏输入框，更好看
         echo '<script>
           window.onload = function() {
@@ -152,13 +158,15 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
             return false;
         }
 
-        // 无法获取文件大小，拒绝下一步
-        if (!isset($file['size'])){
+        //获取设置参数
+        $options = Typecho_Widget::widget('Widget_Options')->plugin('OssForTypecho');
+        $maxSize = (int)($options->maxUploadSize)*1024;
+
+        // 无法获取文件大小，或者文件过大，拒绝下一步
+        if (!isset($file['size']) || $file['size'] > $maxSize){
             return false;
         }
 
-        //获取设置参数
-        $options = Typecho_Widget::widget('Widget_Options')->plugin('OssForTypecho');
 
         //获取文件名
         $date = new Typecho_Date($options->gmtTime);
