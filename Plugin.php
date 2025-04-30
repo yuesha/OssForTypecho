@@ -10,29 +10,32 @@
  * @date 2025-04-29
  */
 
+use AlibabaCloud\Oss\V2 as Oss;
+use AlibabaCloud\Oss\V2\Credentials\StaticCredentialsProvider;
+
 class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
     //上传文件目录
     const UPLOAD_DIR = '/usr/uploads' ;
     // OSS地域信息
     public static $ossRegion = [
-        'oss-cn-hangzhou' => '华东 1(杭州)',
-        'oss-cn-shanghai' => '华东 2(上海)',
-        'oss-cn-qingdao' => '华北 1(青岛)',
-        'oss-cn-beijing' => '华北 2(北京)',
-        'oss-cn-zhangjiakou' => '华北 3(张家口)',
-        'oss-cn-huhehaote' => '华北 5(呼和浩特)',
-        'oss-cn-shenzhen' => '华南 1(深圳)',
-        'oss-cn-hongkong' => '香港',
-        'oss-us-west-1' => '美国西部 1 (硅谷)',
-        'oss-us-east-1' => '美国东部 1 (弗吉尼亚)',
-        'oss-ap-southeast-1' => '亚太东南 1 (新加坡)',
-        'oss-ap-southeast-2' => '亚太东南 2 (悉尼)',
-        'oss-ap-southeast-3' => '亚太东南 3 (吉隆坡)',
-        'oss-ap-southeast-5' => '亚太东南 5 (雅加达)',
-        'oss-ap-northeast-1' => '亚太东北 1 (日本)',
-        'oss-ap-south-1' => '亚太南部 1 (孟买)',
-        'oss-eu-central-1' => '欧洲中部 1 (法兰克福)',
-        'oss-me-east-1' => '中东东部 1 (迪拜)'
+        'cn-hangzhou' => '华东 1(杭州)',
+        'cn-shanghai' => '华东 2(上海)',
+        'cn-qingdao' => '华北 1(青岛)',
+        'cn-beijing' => '华北 2(北京)',
+        'cn-zhangjiakou' => '华北 3(张家口)',
+        'cn-huhehaote' => '华北 5(呼和浩特)',
+        'cn-shenzhen' => '华南 1(深圳)',
+        'cn-hongkong' => '香港',
+        'us-west-1' => '美国西部 1 (硅谷)',
+        'us-east-1' => '美国东部 1 (弗吉尼亚)',
+        'ap-southeast-1' => '亚太东南 1 (新加坡)',
+        'ap-southeast-2' => '亚太东南 2 (悉尼)',
+        'ap-southeast-3' => '亚太东南 3 (吉隆坡)',
+        'ap-southeast-5' => '亚太东南 5 (雅加达)',
+        'ap-northeast-1' => '亚太东北 1 (日本)',
+        'ap-south-1' => '亚太南部 1 (孟买)',
+        'eu-central-1' => '欧洲中部 1 (法兰克福)',
+        'me-east-1' => '中东东部 1 (迪拜)'
     ];
 
     /**
@@ -140,21 +143,32 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
         if (empty($file['name'])) {
             return false;
         }
+
         //获取扩展名
         $ext = self::getSafeName($file['name']);
+
         //判定是否是允许的文件类型
         if (!Widget_Upload::checkFileType($ext) || Typecho_Common::isAppEngine()) {
             return false;
         }
+
+        // 无法获取文件大小，拒绝下一步
+        if (!isset($file['size'])){
+            return false;
+        }
+
         //获取设置参数
         $options = Typecho_Widget::widget('Widget_Options')->plugin('OssForTypecho');
+
         //获取文件名
         $date = new Typecho_Date($options->gmtTime);
         $fileDir = '/' . trim(self::getUploadDir(), '/') . '/' . $date->year . '/' . $date->month;
         $fileName = sprintf('%u', crc32(uniqid())) . '.' . $ext;
         $path = $fileDir . '/' . $fileName;
+
         //获得上传文件
         $uploadfile = self::getUploadFile($file);
+
         //如果没有临时文件，则退出
         if (!isset($uploadfile)) {
             return false;
@@ -164,15 +178,21 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
         //初始化OSS
         $ossClient = self::OssInit();
         try {
-            $result = $ossClient->uploadFile($options->bucket, substr($path,1), $uploadfile);
+            // 打开文件并准备上传
+            // 使用fopen以只读模式打开文件，并通过Utils::streamFor将文件内容转换为流
+            $body = Oss\Utils::streamFor(fopen($uploadfile, 'r'));
+
+            // 创建PutObjectRequest对象，用于上传文件
+            $request = new Oss\Models\PutObjectRequest(bucket: $options->bucket, key: substr($path,1));
+            $request->body = $body; // 设置请求体为文件流
+
+            // 执行上传操作
+            $result = $ossClient->putObject($request);
+            // 上传失败
+            if ($result->statusCode != 200) return false;
         } catch (Exception $e) {
             print_r($e);
             return false;
-        }
-
-        if (!isset($file['size'])){
-            $fileInfo = $result['info'];
-            $file['size'] = $fileInfo['size_upload'];
         }
 
         //返回相对存储路径
@@ -299,9 +319,33 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
      */
     public static function OssInit() {
         $options = Typecho_Widget::widget('Widget_Options')->plugin('OssForTypecho');
-        $endpoint = 'https://' . $options->region . $options->suffix;
-        require_once 'aliyun-oss-php-sdk-2.6.0.phar';
-        return new OSS\OssClient($options->acid, $options->ackey, $endpoint);
+
+        // 引用自动引入的依赖包
+        require_once 'vendor/autoload.php';
+
+        # 创建静态凭证提供者，显式设置访问密钥和密钥密码
+        $credentialsProvider = new StaticCredentialsProvider($options->acid, $options->ackey);
+
+        // 使用SDK的默认配置
+        $cfg = Oss\Config::loadDefault();
+
+        // 设置凭证提供者
+        $cfg->setCredentialsProvider($credentialsProvider);
+
+        // 设置HTTP连接超时时间为20秒
+        $cfg->setConnectTimeout(20);
+
+        // HTTP读取或写入超时时间为60秒
+        $cfg->setReadWriteTimeout(60);
+
+        // 不校验SSL证书校验
+        $cfg->setDisableSSL(true);
+
+        // 设置Bucket所在的地域
+        $cfg->setRegion($options->region);
+
+        // 创建OSS客户端实例
+        return new Oss\Client($cfg);
     }
 
     /**

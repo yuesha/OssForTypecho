@@ -1,0 +1,5 @@
+{
+    "require": {
+        "alibabacloud/oss-v2": "0.3.0"
+    }
+}
