@@ -90,7 +90,7 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
             _t('AccessKeySecret：'));
         $form->addInput($ackey->addRule('required', _t('AccessKey不能为空！')));
 
-        $region = new Typecho_Widget_Helper_Form_Element_Select('region', self::$ossRegion, 'oss-cn-hangzhou', _t('存储区域：') );
+        $region = new Typecho_Widget_Helper_Form_Element_Select('region', self::$ossRegion, 'oss-cn-hangzhou', _t('存储区域/地域：') );
         $form->addInput($region);
 
         $suffix = new Typecho_Widget_Helper_Form_Element_Radio('suffix', array('.aliyuncs.com' => '外网', '-internal.aliyuncs.com' => '内网'),
@@ -103,8 +103,14 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
         $domain = new Typecho_Widget_Helper_Form_Element_Text('domain',
             NULL, '',
             _t('Bucket自定义域名：'),
-            _t('可使用自定义域名（留空则使用默认域名）<br>例如：http://oss.example.com（需加上前面的 http:// 或 https://）'));
+            _t('可使用自定义域名（留空则使用默认域名，如https://aliyun-xx-public-oss.oss-cn-xx.aliyuncs.com）<br>例如：http://oss.example.com（需加上前面的 http:// 或 https://）'));
         $form->addInput($domain);
+
+        $uploadDir = new Typecho_Widget_Helper_Form_Element_Text('uploadDir',
+            NULL, '/usr/uploads',
+            _t('上传文件目录：'),
+            _t('eg:https://oss.example.com/{$上传文件目录}/2025/04/1021214824.png，上传文件目录 不需要斜杠结尾'));
+        $form->addInput($uploadDir);
 
         // 隐藏输入框，更好看
         echo '<script>
@@ -144,7 +150,7 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
         $options = Typecho_Widget::widget('Widget_Options')->plugin('OssForTypecho');
         //获取文件名
         $date = new Typecho_Date($options->gmtTime);
-        $fileDir = self::getUploadDir() . '/' . $date->year . '/' . $date->month;
+        $fileDir = '/' . trim(self::getUploadDir(), '/') . '/' . $date->year . '/' . $date->month;
         $fileName = sprintf('%u', crc32(uniqid())) . '.' . $ext;
         $path = $fileDir . '/' . $fileName;
         //获得上传文件
@@ -299,21 +305,6 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
     }
 
     /**
-     *获取文件上传目录
-     * @access private
-     * @return string
-     */
-    private static function getUploadDir() {
-        if(defined('__TYPECHO_UPLOAD_DIR__'))
-        {
-            return __TYPECHO_UPLOAD_DIR__;
-        }
-        else{
-            return self::UPLOAD_DIR;
-        }
-    }
-
-    /**
      * 获取上传文件
      *
      * @param array $file 上传的文件
@@ -325,7 +316,7 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
     }
 
     /**
-     *获取文件上传目录
+     *获取文件上传域名
      * @access private
      * @return string
      */
@@ -334,6 +325,25 @@ class OssForTypecho_Plugin implements Typecho_Plugin_Interface {
         $domain = $options->domain;
         if(empty($domain))  $domain = 'https://' . $options->bucket . '.' . $options->region . '.aliyuncs.com';
         return $domain;
+    }
+
+    /**
+     *获取文件上传目录
+     * @access private
+     * @return string
+     */
+    private static function getUploadDir() {
+        $options = Typecho_Widget::widget('Widget_Options')->plugin('OssForTypecho');
+        $uploadDir = $options->uploadDir;
+
+        // 优先取用户配置项
+        if(!empty($uploadDir)) return $uploadDir;
+
+        // 其次从根目录下的config.inc.php配置文件的常量里取
+        if(defined('__TYPECHO_UPLOAD_DIR__') && !empty(__TYPECHO_UPLOAD_DIR__)) return __TYPECHO_UPLOAD_DIR__;
+
+        // 最后从当前文件的定义取
+        return self::UPLOAD_DIR;
     }
 
     /**
